@@ -47,6 +47,15 @@
    "desc": "1 vs 1: llega al otro lado."
   },
   {
+   "id": "base-ondas",
+   "month": "*",
+   "name": "Canales Ondulados",
+   "mode": "emeralds",
+   "map": "ondas",
+   "reward": 0,
+   "desc": "Mapa de tu dibujo: canales de agua con puentes."
+  },
+  {
    "id": "base-templo",
    "month": "*",
    "name": "Templo del Sol",

@@ -59,9 +59,9 @@
   function topbar(back) {
     const u = S.user;
     return `<div class="top">${back ? '<button class="alt" id="back">◀</button>' : ''}
-      <div class="pill tr">🏆 ${u.trophies}</div><div class="pill em">💎 ${u.emeralds}</div>
+      <div class="pill tr">🏆 ${u.trophies}</div><div class="pill em">💎 ${u.emeralds}</div><div class="pill" style="color:#fbbf24">🪙 ${u.coins | 0}</div>
       <div class="spacer"></div><div class="pill">👤 ${esc(u.username)}</div>
-      ${back ? '' : `<button class="alt" id="bra">PERSONAJES</button><button class="alt" id="shop">TIENDA</button><button class="alt" id="news">NOTICIAS</button><button class="alt" id="msgs">MENSAJES${u.unread ? ' (' + u.unread + ')' : ''}</button><button class="alt" id="maps">MAPAS</button><button class="alt" id="out">SALIR</button>`}
+      ${back ? '' : `<button class="alt" id="bra">PERSONAJES</button><button class="alt" id="shop">TIENDA</button><button class="green" id="dropb">CUADRODROP${u.drops ? ' ×' + u.drops : ''}</button><button class="alt" id="news">NOTICIAS</button><button class="alt" id="msgs">MENSAJES${u.unread ? ' (' + u.unread + ')' : ''}</button><button class="alt" id="maps">MAPAS</button><button class="alt" id="out">SALIR</button>`}
     </div>`;
   }
   function wireTop(back) {
@@ -69,6 +69,7 @@
     if (back && $('back')) $('back').onclick = viewLobby;
     if ($('bra')) $('bra').onclick = viewBrawlers;
     if ($('shop')) $('shop').onclick = viewShop;
+    if ($('dropb')) $('dropb').onclick = viewDrop;
     if ($('news')) $('news').onclick = viewNews;
     if ($('msgs')) $('msgs').onclick = viewMessages;
     if ($('maps')) $('maps').onclick = viewEditor;
@@ -83,7 +84,9 @@
         <div class="panel"><h3>EVENTOS</h3><div id="evs"></div></div>
         <div class="panel hero"><div id="pv"></div><h2>${esc(b.name)}</h2>
           <div><span class="tag" style="background:${D.rarity[b.rarity].color}">${D.rarity[b.rarity].name}</span> <span class="tag" style="background:#334">${esc(skinLabel(sk))}</span></div>
-          <button class="play" id="play">JUGAR</button></div>
+          <div class="pill">Nivel ${(u.levels || {})[b.id] || 1}</div>
+          <button class="play" id="play">JUGAR</button>
+          <button class="alt" id="train" style="width:100%">ENTRENAR / PROBAR</button></div>
         <div class="panel"><h3>ATAQUES</h3>
           <div>🗡️ <b>${esc(b.atk.name)}</b><br><small>Daño ${b.atk.dmg} · ${b.atk.kind}</small></div>
           <div>⚡ <b>${esc(b.sup.name)}</b><br><small>Súper · carga golpeando</small></div>
@@ -117,7 +120,63 @@
       };
       mates.appendChild(sel);
     });
-    document.getElementById('play').onclick = () => viewBattle();
+    document.getElementById('play').onclick = () => viewPick(false);
+    document.getElementById('train').onclick = () => viewPick(true);
+  }
+
+  // ---------- elegir luchador antes del combate (o para entrenar/probar) ----------
+  function viewPick(train) {
+    const u = S.user; let sel = u.selected;
+    const list = train ? D.brawlers : D.brawlers.filter(b => u.owned.includes(b.id));
+    app.innerHTML = `<div class="screen">${topbar(true)}<h2>${train ? 'ENTRENAMIENTO · elige a quién probar' : 'ELIGE TU LUCHADOR'}</h2>
+      <small>${train ? 'Puedes probar cualquier personaje, también los que aún no tienes. Súper y munición infinitos.' : 'Toca un luchador y pulsa ¡A LUCHAR!'}</small>
+      <div class="grid" id="g"></div><button class="play" id="go">${train ? 'ENTRENAR' : '¡A LUCHAR!'}</button></div>`;
+    wireTop(true);
+    const g = document.getElementById('g');
+    const draw = () => {
+      g.innerHTML = '';
+      list.forEach(b => {
+        const own = u.owned.includes(b.id), c = document.createElement('div');
+        c.className = 'card' + (sel === b.id ? ' sel' : '');
+        c.appendChild(preview(b.id, own ? curSkin(b.id) : null, 96));
+        c.insertAdjacentHTML('beforeend', `<b>${esc(b.name)}</b><span class="tag" style="background:${D.rarity[b.rarity].color}">${D.rarity[b.rarity].name}</span><small>🗡️ ${esc(b.atk.name)} · ⚡ ${esc(b.sup.name)}${b.gadget ? ' · 🟢 ' + esc(b.gadget.name) : ''}</small><small>${own ? 'Nivel ' + ((u.levels || {})[b.id] || 1) : '🔒 Prueba'}</small>`);
+        c.onclick = () => { sel = b.id; draw(); };
+        g.appendChild(c);
+      });
+    };
+    draw();
+    document.getElementById('go').onclick = async () => {
+      if (train) return viewBattle(null, { train: true, brawler: sel });
+      try { S.user = (await api('select', { brawler: sel })).user; } catch (e) { return toast(e.message); }
+      viewBattle();
+    };
+  }
+
+  // ---------- Cuadrodrop ----------
+  function viewDrop() {
+    const u = S.user;
+    app.innerHTML = `<div class="screen">${topbar(true)}<h2>CUADRODROP</h2>
+      <div class="center" style="align-items:center;text-align:center">
+        <div class="cube" id="cube">${Array.from({ length: 9 }, (_, i) => `<i style="--c:${['#60a5fa', '#a855f7', '#facc15'][i % 3]};--dx:${(i % 3 - 1) * 90 + Math.random() * 40 - 20}px;--dy:${(Math.floor(i / 3) - 1) * 90 + Math.random() * 40 - 20}px;--r:${Math.random() * 180 - 90}deg"></i>`).join('')}</div>
+        <div id="res" style="min-height:120px"></div>
+        <button class="green play" id="open">${u.drops ? 'ABRIR (' + u.drops + ' disponibles)' : 'COMPRAR Y ABRIR · ' + D.drop.price + ' 💎'}</button>
+        <small>Gana partidas para conseguir Cuadrodrops gratis. Pueden salir personajes, monedas y esmeraldas.</small>
+      </div></div>`;
+    wireTop(true);
+    document.getElementById('open').onclick = async function () {
+      this.disabled = true;
+      try {
+        const r = await api('drop/open', { buy: !u.drops });
+        const cube = document.getElementById('cube'); cube.classList.add('shake');
+        await new Promise(res => setTimeout(res, 900));
+        cube.classList.remove('shake'); cube.classList.add('burst');
+        S.user = r.user;
+        const t = D.drop.tiers.find(x => x.key === r.reward.tier), res = document.getElementById('res');
+        res.innerHTML = `<h2 style="color:${t.color}">${esc(t.name)}</h2><div class="big" style="font-size:28px">+${r.reward.coins} 🪙 · +${r.reward.emeralds} 💎</div>`;
+        if (r.reward.brawler) { const b = br(r.reward.brawler); res.insertAdjacentHTML('beforeend', '<h3>¡Nuevo personaje!</h3>'); res.appendChild(preview(b.id, null, 110)); res.insertAdjacentHTML('beforeend', `<h2>${esc(b.name)}</h2>`); }
+        const nb = document.getElementById('open'); nb.disabled = false; nb.textContent = 'OTRA VEZ'; nb.onclick = viewDrop;
+      } catch (e) { toast(e.message); this.disabled = false; }
+    };
   }
 
   // ---------- personajes ----------
@@ -130,7 +189,17 @@
       c.className = 'card' + (own ? '' : ' lock') + (S.user.selected === b.id ? ' sel' : '');
       c.appendChild(preview(b.id, curSkin(b.id), 96));
       c.insertAdjacentHTML('beforeend', `<b>${esc(b.name)}</b><span class="tag" style="background:${D.rarity[b.rarity].color}">${D.rarity[b.rarity].name}</span><small>❤ ${b.hp} · ${esc(b.atk.name)}</small><small>${own ? 'Toca para elegir' : '🔒 Sal de una caja'}</small>`);
-      if (own) c.onclick = async () => { S.user = (await api('select', { brawler: b.id })).user; viewLobby(); };
+      if (own) {
+        const lv = (S.user.levels || {})[b.id] || 1, cost = D.upgrade.cost[lv - 1];
+        c.insertAdjacentHTML('beforeend', `<div class="pill">Nivel ${lv}${lv >= D.upgrade.max ? ' (MAX)' : ''}</div>`);
+        if (lv < D.upgrade.max) {
+          const up = document.createElement('button'); up.className = 'green'; up.style.padding = '8px 12px'; up.textContent = 'MEJORAR · ' + cost + ' 🪙';
+          up.disabled = (S.user.coins | 0) < cost;
+          up.onclick = async ev => { ev.stopPropagation(); try { S.user = (await api('upgrade', { brawler: b.id })).user; toast(b.name + ' → nivel ' + (lv + 1)); viewBrawlers(); } catch (e) { toast(e.message); } };
+          c.appendChild(up);
+        }
+        c.onclick = async () => { S.user = (await api('select', { brawler: b.id })).user; viewLobby(); };
+      }
       g.appendChild(c);
     });
   }
@@ -172,23 +241,28 @@
   }
   function boxModal(r) {
     const m = document.createElement('div'); m.className = 'modal';
-    m.innerHTML = `<div class="panel"><h2>¡CAJA ABIERTA!</h2><div class="big" style="color:var(--em)">+${r.emeralds} 💎</div><div id="nb"></div><button>OK</button></div>`;
+    m.innerHTML = `<div class="panel"><h2>¡CAJA ABIERTA!</h2><div class="big" style="color:var(--em)">+${r.emeralds} 💎</div><div class="big" style="font-size:30px;color:#fbbf24">+${r.coins | 0} 🪙</div><div id="nb"></div><button>OK</button></div>`;
     if (r.brawler) { const b = br(r.brawler); m.querySelector('#nb').innerHTML = `<h3>¡Nuevo personaje!</h3>`; m.querySelector('#nb').appendChild(preview(b.id, null, 120)); m.querySelector('#nb').insertAdjacentHTML('beforeend', `<h2>${esc(b.name)}</h2>`); }
     m.querySelector('button').onclick = () => { m.remove(); viewShop(); };
     document.body.appendChild(m);
   }
 
   // ---------- batalla ----------
-  function viewBattle(custom) {
-    S.custom = custom || null;
-    const ev = custom ? { id: 'custom', mode: custom.mode, map: null } : S.events.find(e => e.id === S.ev), u = S.user, sk = curSkin(u.selected);
+  function viewBattle(custom, opts) {
+    S.custom = custom || null; S.opts = opts || null;
+    const train = !!(opts && opts.train);
+    const ev = train ? { id: 'train', mode: 'training', map: 'entrena' } : custom ? { id: 'custom', mode: custom.mode, map: null } : S.events.find(e => e.id === S.ev), u = S.user;
+    const bid = train ? opts.brawler : u.selected, sk = u.owned.includes(bid) ? curSkin(bid) : null;
     app.innerHTML = `<div id="battle"><canvas id="cv"></canvas>
+      <button id="exit" class="alt" style="position:absolute;left:10px;top:48px;padding:8px 12px;z-index:3">✕ SALIR</button>
       <div class="mbtns"><button id="bf" class="red">🔥<br>DISPARO</button><button id="bs">⚡<br>SÚPER</button><button id="bg" class="green" style="display:none">🟢<br>GADGET</button></div></div>`;
     const g = Game.startMatch(document.getElementById('cv'), {
-      brawlerId: u.selected, skinKey: sk, mapId: ev.map, mode: ev.mode, customMap: custom || undefined, mates: u.mates,
+      brawlerId: bid, skinKey: sk, mapId: ev.map, mode: ev.mode, customMap: custom || undefined, mates: u.mates,
+      level: u.owned.includes(bid) ? ((u.levels || {})[bid] || 1) : 1,
       onEnd: res => endBattle(ev, res),
     });
     S.game = g;
+    document.getElementById('exit').onclick = () => { g.stop(); S.game = null; if (train) viewLobby(); else if (custom) viewEditor(); else viewLobby(); };
     const hold = (el, fn) => { let iv; el.onpointerdown = e => { e.preventDefault(); fn(); iv = setInterval(fn, 250); }; const stop = () => clearInterval(iv); el.onpointerup = el.onpointerleave = el.onpointercancel = stop; };
     hold(document.getElementById('bf'), () => g.fire());
     document.getElementById('bs').onpointerdown = e => { e.preventDefault(); g.super(); };
@@ -200,11 +274,11 @@
     if (ev.id !== 'custom') { try { r = await api('result', { win: res.win, draw: res.draw, collected: res.collected, eventId: ev.id }); S.user = r.user; } catch (e) { toast(e.message); } }
     const m = document.createElement('div'); m.className = 'modal';
     m.innerHTML = `<div class="panel"><div class="big">${res.win ? '🏆 ¡VICTORIA!' : res.draw ? 'EMPATE' : '💀 DERROTA'}</div>
-      ${r ? `<div class="pill tr">🏆 ${r.trophies >= 0 ? '+' : ''}${r.trophies}</div><div class="pill em">💎 +${r.emeralds}</div>` : ev.id === 'custom' ? '<small>Mapa de prueba: sin recompensas</small>' : '<small>Sin recompensa (partidas muy seguidas)</small>'}
+      ${r ? `<div class="pill tr">🏆 ${r.trophies >= 0 ? '+' : ''}${r.trophies}</div><div class="pill em">💎 +${r.emeralds}</div><div class="pill" style="color:#fbbf24">🪙 +${r.coins}</div>${r.drop ? '<div class="pill" style="background:#7c3aed">🎁 ¡Ganaste un Cuadrodrop!</div>' : ''}` : ev.id === 'custom' ? '<small>Mapa de prueba: sin recompensas</small>' : '<small>Sin recompensa (partidas muy seguidas)</small>'}
       <button id="again">OTRA VEZ</button><button class="alt" id="menu">MENÚ</button></div>`;
     document.body.appendChild(m);
     m.querySelector('#menu').onclick = () => { m.remove(); ev.id === 'custom' ? viewEditor() : viewLobby(); };
-    m.querySelector('#again').onclick = () => { m.remove(); viewBattle(S.custom); };
+    m.querySelector('#again').onclick = () => { m.remove(); viewBattle(S.custom, S.opts); };
   }
 
   // ---------- noticias ----------
@@ -280,7 +354,7 @@
       <div class="tabs" id="tools"></div>
       <div class="tabs">
         <input id="nm" maxlength="24" placeholder="Nombre" style="width:170px" value="${esc(ed.name)}">
-        <select id="md" style="font:inherit;padding:10px;border-radius:10px;background:#0c1030;color:#fff;border:2px solid #262d5e">${Object.entries(D.modes).map(([k, v]) => `<option value="${k}" ${ed.mode === k ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select>
+        <select id="md" style="font:inherit;padding:10px;border-radius:10px;background:#0c1030;color:#fff;border:2px solid #262d5e">${Object.entries(D.modes).filter(([, v]) => !v.hidden).map(([k, v]) => `<option value="${k}" ${ed.mode === k ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select>
         <select id="fl" style="font:inherit;padding:10px;border-radius:10px;background:#0c1030;color:#fff;border:2px solid #262d5e">${FLOOR_NAMES.map((n, i) => `<option value="${i}" ${ed.floorIdx === i ? 'selected' : ''}>${n}</option>`).join('')}</select>
         <label class="pill"><input type="checkbox" id="mir" ${ed.mirror ? 'checked' : ''}> Simétrico</label>
         <label class="pill">Filas <input id="hh" type="number" min="10" max="16" value="${ed.grid.length}" style="width:60px;padding:4px"></label>

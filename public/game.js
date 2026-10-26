@@ -67,6 +67,7 @@
       if (b.id === 'galleo') { ctx.fillStyle = b.color; ctx.beginPath(); ctx.arc(0, -r * 1, r * .75, Math.PI, 0); ctx.fill(); ctx.fillRect(face > 0 ? 0 : -r * 1.1, -r * 1, r * 1.1, r * .22); }
       if (b.id === 'dragot') { ctx.fillStyle = b.accent; for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.moveTo(i * r * .35 - 4, -r * 1.4); ctx.lineTo(i * r * .35, -r * 1.9); ctx.lineTo(i * r * .35 + 4, -r * 1.4); ctx.fill(); } ctx.fillStyle = '#a3e635'; ctx.beginPath(); ctx.ellipse(face * r * .45, -r * .6, r * .4, r * .25, 0, 0, 7); ctx.fill(); }
       if (b.id === 'ninjagravity') { ctx.fillStyle = '#1e293b'; ctx.beginPath(); ctx.arc(0, -r * .8, r * .74, 0, 7); ctx.fill(); ctx.fillStyle = b.accent; ctx.fillRect(-r * .75, -r * 1.1, r * 1.5, r * .22); ctx.fillStyle = '#fff'; ctx.fillRect(-r * .4, -r * .82, r * .8, r * .2); }
+      if (b.id === 'lobita') { ctx.fillStyle = b.color; for (const s of [-1, 1]) { ctx.beginPath(); ctx.moveTo(s * r * .25, -r * 1.35); ctx.lineTo(s * r * .75, -r * 2); ctx.lineTo(s * r * .85, -r * 1.2); ctx.fill(); } ctx.fillStyle = b.accent; ctx.beginPath(); ctx.arc(0, -r * .55, 3, 0, 7); ctx.fill(); }
       if (b.id === 'superboy') { ctx.fillStyle = '#111'; ctx.fillRect(-r * .6, -r * 1, r * 1.2, r * .3); }
       ctx.fillStyle = '#111';
       if (b.id !== 'ninjagravity' && b.id !== 'superboy') { ctx.beginPath(); ctx.arc(face * r * .25 - r * .22, -r * .85, 2, 0, 7); ctx.arc(face * r * .25 + r * .22, -r * .85, 2, 0, 7); ctx.fill(); }
@@ -107,7 +108,7 @@
     const ctx = canvas.getContext('2d');
     const mode = o.mode;
     const ents = [], bullets = [], gems = [], fx = [], zones = [];
-    let time = 0, over = false, raf = 0, last = performance.now(), clock = mode === 'emeralds' ? 150 : mode === 'cross' ? 60 : 90, gemT = 1;
+    let time = 0, over = false, raf = 0, last = performance.now(), clock = mode === 'emeralds' ? 150 : mode === 'cross' ? 60 : mode === 'training' ? 1e9 : 90, gemT = 1;
     const hold = [0, 0];
     const keys = {}, mouse = { x: W / 2, y: H / 2, down: false, used: false };
     const joy = { on: false, id: null, ox: 0, oy: 0, x: 0, y: 0 };
@@ -118,8 +119,9 @@
     const inBush = e => tile(e.x, e.y) === 'b';
 
     function mk(bid, skin, team, idx, isPlayer) {
+      const lvl = isPlayer ? Math.max(1, o.level | 0 || 1) : (o.botLevel || 4), lm = 1 + D.upgrade.bonus * (lvl - 1);
       const b = brById(bid), sp = map.spawns[team][idx % Math.max(1, map.spawns[team].length)] || { x: W / 2, y: H / 2 };
-      return { b, skin, team, isPlayer, x: sp.x, y: sp.y, sx: sp.x, sy: sp.y, hp: b.hp, max: b.hp, ammo: 3, ammoT: 0, cd: 0, charge: 0,
+      return { b, skin, team, isPlayer, x: sp.x, y: sp.y, sx: sp.x, sy: sp.y, hp: b.hp * lm, max: b.hp * lm, lm, lvl, inv: 0, visionT: 0, ammo: 3, ammoT: 0, cd: 0, charge: 0,
         carry: 0, dir: team ? Math.PI : 0, dead: false, respawn: 0, buff: null, dash: null, gadgetUsed: false, slow: 1,
         ai: { wander: 0, wx: 0, wy: 0, react: rnd(.1, .4), lastX: 0, lastY: 0 }, collected: 0 };
     }
@@ -128,7 +130,9 @@
     const skinPick = () => Math.random() < .35 ? D.skinStyles[Math.floor(Math.random() * D.skinStyles.length)].key : null;
     ents.push(mk(o.brawlerId, o.skinKey || null, 0, 0, true));
     if (mode === 'cross') ents.push(mk(pick(), skinPick(), 1, 0));
-    else {
+    else if (mode === 'training') {
+      for (let i = 0; i < 3; i++) { const d = mk('cookid', 'ghost', 1, i); d.hp = d.max = 40000; d.dummy = true; ents.push(d); }
+    } else {
       for (let i = 1; i < 3; i++) ents.push(mk((o.mates && brById(o.mates[i - 1]) ? o.mates[i - 1] : pick()), skinPick(), 0, i));
       for (let i = 0; i < 3; i++) ents.push(mk(pick(), skinPick(), 1, i));
     }
@@ -144,7 +148,7 @@
     const me = ents[0];
 
     function dmg(t, amt, src) {
-      if (t.dead || over) return;
+      if (t.dead || over || t.inv > 0) return;
       t.hp -= amt;
       fx.push({ k: 'txt', x: t.x, y: t.y - 30, s: Math.round(amt), t: 0, max: .7, c: t.team === me.team ? '#ff9aa8' : '#fff' });
       if (src) src.charge = Math.min(1, src.charge + .13);
@@ -153,14 +157,14 @@
         if (mode === 'emeralds') {
           for (let i = 0; i < t.carry; i++) gems.push({ x: t.x, y: t.y, vx: rnd(-2, 2), vy: rnd(-2, 2), age: 0 });
           t.carry = 0; t.respawn = 3.5;
-        }
+        } else if (mode === 'training') t.respawn = 1.5;
         fx.push({ k: 'ring', x: t.x, y: t.y, r: 8, t: 0, max: .4, to: 40, c: '#fff' });
       }
     }
 
     function fire(e, ang) {
       if (e.dead || e.cd > 0 || e.ammo < 1 || over) return false;
-      const a = e.b.atk, mult = (e.buff ? e.buff.dmg : 1);
+      const a = e.b.atk, mult = (e.buff ? e.buff.dmg : 1) * e.lm;
       e.ammo--; e.cd = .28; e.dir = ang;
       if (a.kind === 'melee') {
         fx.push({ k: 'slash', x: e.x, y: e.y, a: ang, r: a.range, w: a.arc, t: 0, max: .2 });
@@ -184,7 +188,7 @@
       if (s.kind === 'blast') {
         const cx = e.x + Math.cos(ang) * s.dist, cy = e.y + Math.sin(ang) * s.dist;
         fx.push({ k: 'ring', x: cx, y: cy, r: 10, to: s.radius, t: 0, max: .45, c: '#ffb020', fill: true });
-        for (const f of ents) if (!f.dead && f.team !== e.team && Math.hypot(f.x - cx, f.y - cy) < s.radius + R) dmg(f, s.dmg, e);
+        for (const f of ents) if (!f.dead && f.team !== e.team && Math.hypot(f.x - cx, f.y - cy) < s.radius + R) dmg(f, s.dmg * e.lm, e);
       } else if (s.kind === 'buff') {
         e.buff = { t: s.dur, speed: s.speed, dmg: s.dmg };
         e.hp = Math.min(e.max, e.hp + e.max * s.heal);
@@ -196,7 +200,7 @@
         for (const f of ents) if (!f.dead && f.team !== e.team) {
           const dx = e.x - f.x, dy = e.y - f.y, d = Math.hypot(dx, dy);
           if (d < s.radius) {
-            dmg(f, s.dmg, e);
+            dmg(f, s.dmg * e.lm, e);
             const m = Math.min(s.pull, Math.max(0, d - 30)) / (d || 1);
             if (!blocked(f.x + dx * m, f.y + dy * m)) { f.x += dx * m; f.y += dy * m; }
           }
@@ -206,8 +210,14 @@
     }
     function useGadget(e, ang) {
       const g = e.b.gadget; if (!g || e.gadgetUsed || e.dead || over) return false;
-      e.gadgetUsed = true;
-      zones.push({ x: e.x + Math.cos(ang) * g.dist, y: e.y + Math.sin(ang) * g.dist, r: g.radius, t: g.dur, team: e.team, slow: g.slow });
+      if (mode !== 'training') e.gadgetUsed = true;
+      if (g.kind === 'slime') zones.push({ x: e.x + Math.cos(ang) * g.dist, y: e.y + Math.sin(ang) * g.dist, r: g.radius, t: g.dur, team: e.team, slow: g.slow });
+      else if (g.kind === 'dodge') { e.dash = { t: .22, vx: Math.cos(ang + Math.PI) * g.dist / .22, vy: Math.sin(ang + Math.PI) * g.dist / .22, hit: new Set(), s: { dmg: 0, radius: 0 } }; e.inv = .5; fx.push({ k: 'ring', x: e.x, y: e.y, r: 10, to: 45, t: 0, max: .3, c: '#a5f3fc' }); }
+      else if (g.kind === 'vision') { e.visionT = g.dur; fx.push({ k: 'ring', x: e.x, y: e.y, r: 10, to: 60, t: 0, max: .4, c: '#fde047' }); }
+      else if (g.kind === 'fury') {
+        fx.push({ k: 'ring', x: e.x, y: e.y, r: 10, to: g.radius, t: 0, max: .3, c: '#fb923c', fill: true });
+        for (const f of ents) if (!f.dead && f.team !== e.team && Math.hypot(f.x - e.x, f.y - e.y) < g.radius + R) dmg(f, g.dmg * e.lm, e);
+      }
       return true;
     }
 
@@ -277,9 +287,10 @@
     function update(dt) {
       time += dt; clock -= dt;
       for (const e of ents) {
-        e.cd = Math.max(0, e.cd - dt);
+        e.cd = Math.max(0, e.cd - dt); e.inv = Math.max(0, e.inv - dt); e.visionT = Math.max(0, e.visionT - dt);
+        if (mode === 'training' && e.isPlayer && !e.dead) { e.ammo = 3; e.charge = 1; }
         if (e.dead) {
-          if (mode === 'emeralds' && !over) { e.respawn -= dt; if (e.respawn <= 0) { e.dead = false; e.hp = e.max; e.x = e.sx; e.y = e.sy; e.ammo = 3; } }
+          if ((mode === 'emeralds' || mode === 'training') && !over) { e.respawn -= dt; if (e.respawn <= 0) { e.dead = false; e.hp = e.max; e.x = e.sx; e.y = e.sy; e.ammo = 3; } }
           continue;
         }
         if (e.ammo < 3) { e.ammoT += dt; if (e.ammoT >= e.b.atk.reload) { e.ammo++; e.ammoT = 0; } }
@@ -289,7 +300,7 @@
         if (e.dash) {
           const d = e.dash; d.t -= dt;
           step(e, d.vx * dt, d.vy * dt);
-          for (const f of ents) if (!f.dead && f.team !== e.team && !d.hit.has(f) && Math.hypot(f.x - e.x, f.y - e.y) < d.s.radius) { d.hit.add(f); dmg(f, d.s.dmg, e); }
+          for (const f of ents) if (!f.dead && f.team !== e.team && !d.hit.has(f) && Math.hypot(f.x - e.x, f.y - e.y) < d.s.radius) { d.hit.add(f); dmg(f, d.s.dmg * e.lm, e); }
           if (d.t <= 0) e.dash = null;
           continue;
         }
@@ -298,7 +309,7 @@
           mv = playerInput();
           if (mouse.used && mouse.down) fire(e, mouseAim());
           if (mv[0] || mv[1]) e.dir = Math.atan2(my0(mv), mv[0]);
-        } else mv = aiUpdate(e, dt);
+        } else mv = e.dummy ? [0, 0] : aiUpdate(e, dt);
         const sp = e.b.speed * (e.buff ? e.buff.speed : 1) * e.slow * 60 * dt;
         const l = Math.hypot(mv[0], mv[1]);
         if (l > .01) step(e, mv[0] / Math.max(1, l) * sp, mv[1] / Math.max(1, l) * sp);
@@ -335,7 +346,7 @@
       setTimeout(() => { cancelAnimationFrame(raf); o.onEnd && o.onEnd(res); }, 900);
     }
     function checkEnd(dt) {
-      if (over) return;
+      if (over || mode === 'training') return;
       if (mode === 'emeralds') {
         for (const t of [0, 1]) { if (teamGems(t) >= 10) hold[t] += dt; else hold[t] = 0; }
         if (hold[0] >= 12 || hold[1] >= 12) return finish(hold[0] >= 12);
@@ -372,7 +383,7 @@
       const ally = ents.filter(e => e.team === me.team && !e.dead);
       for (const e of [...ents].sort((a, b) => a.y - b.y)) {
         if (e.dead) continue;
-        const hidden = e.team !== me.team && inBush(e) && !ally.some(a => Math.hypot(a.x - e.x, a.y - e.y) < 150);
+        const hidden = e.team !== me.team && inBush(e) && !(me.visionT > 0) && !ally.some(a => Math.hypot(a.x - e.x, a.y - e.y) < 150);
         if (hidden) continue;
         const inb = inBush(e);
         ctx.globalAlpha = inb ? .6 : 1;
@@ -404,7 +415,8 @@
       }
       // HUD
       ctx.fillStyle = '#000a'; ctx.fillRect(W / 2 - 150, 6, 300, 34); ctx.font = 'bold 20px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillStyle = '#fff'; const mm = Math.max(0, Math.ceil(clock)); ctx.fillText(Math.floor(mm / 60) + ':' + String(mm % 60).padStart(2, '0'), W / 2, 31);
+      ctx.fillStyle = '#fff'; const mm = Math.max(0, Math.ceil(clock)); ctx.fillText(mode === 'training' ? '∞' : Math.floor(mm / 60) + ':' + String(mm % 60).padStart(2, '0'), W / 2, 31);
+      if (mode === 'training') { ctx.fillStyle = '#7dd3fc'; ctx.font = 'bold 14px sans-serif'; ctx.fillText('ENTRENAMIENTO · súper y munición infinitos', W / 2, 58); ctx.font = 'bold 20px sans-serif'; }
       if (mode === 'emeralds') {
         ctx.fillStyle = '#60a5fa'; ctx.fillText('💎 ' + teamGems(0) + (hold[0] ? ' · ' + Math.ceil(12 - hold[0]) + 's' : ''), W / 2 - 95, 31);
         ctx.fillStyle = '#f87171'; ctx.fillText((hold[1] ? Math.ceil(12 - hold[1]) + 's · ' : '') + teamGems(1) + ' 💎', W / 2 + 95, 31);
