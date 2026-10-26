@@ -1,0 +1,59 @@
+{
+ "_help": "Cada mes se añaden eventos aquí. 'month' = AAAA-MM (o '*' para siempre). reward = esmeraldas extra al ganar.",
+ "events": [
+  {
+   "id": "base-esmeraldas",
+   "month": "*",
+   "name": "Atrapa Esmeraldas",
+   "mode": "emeralds",
+   "map": "jardin",
+   "reward": 0,
+   "desc": "Modo clásico."
+  },
+  {
+   "id": "base-noqueo",
+   "month": "*",
+   "name": "Noqueo",
+   "mode": "knockout",
+   "map": "rio",
+   "reward": 0,
+   "desc": "3 contra 3, sin reaparecer."
+  },
+  {
+   "id": "2026-10-calabazas",
+   "month": "2026-10",
+   "name": "Noche de Calabazas",
+   "mode": "emeralds",
+   "map": "calabaza",
+   "reward": 25,
+   "desc": "Evento de octubre: +25 esmeraldas al ganar."
+  },
+  {
+   "id": "base-laguna",
+   "month": "*",
+   "name": "Laguna Azul",
+   "mode": "emeralds",
+   "map": "laguna",
+   "reward": 0,
+   "desc": "Mapa de agua con islas y puentes."
+  },
+  {
+   "id": "base-duelo",
+   "month": "*",
+   "name": "Duelo en el Cuadrado",
+   "mode": "cross",
+   "map": "cuadrado",
+   "reward": 0,
+   "desc": "1 vs 1: llega al otro lado."
+  },
+  {
+   "id": "base-templo",
+   "month": "*",
+   "name": "Templo del Sol",
+   "mode": "knockout",
+   "map": "templo",
+   "reward": 0,
+   "desc": "Noqueo en el templo."
+  }
+ ]
+}

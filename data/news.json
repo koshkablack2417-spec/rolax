@@ -1,0 +1,22 @@
+{
+ "news": [
+  {
+   "id": "n1",
+   "date": "2026-10-25",
+   "title": "¡Bienvenido a Rolax!",
+   "body": "Elige tu personaje, abre cajas y gana esmeraldas. ¡Ya puedes crear tus propios mapas!"
+  },
+  {
+   "id": "n2",
+   "date": "2026-10-25",
+   "title": "Noche de Calabazas",
+   "body": "Evento de octubre: gana en el Cementerio de Calabazas y llévate +25 💎."
+  },
+  {
+   "id": "n3",
+   "date": "2026-10-25",
+   "title": "Nuevos héroes",
+   "body": "Llegan Bloquín, Pixelo y Aurion, con skins Dorado, Neón y Fantasma."
+  }
+ ]
+}
